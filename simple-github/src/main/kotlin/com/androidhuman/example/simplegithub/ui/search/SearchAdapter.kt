@@ -13,6 +13,9 @@ import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
 import com.androidhuman.example.simplegithub.ui.GlideApp
+import kotlinx.android.synthetic.main.item_repository.view.ivItemRepositoryProfile
+import kotlinx.android.synthetic.main.item_repository.view.tvItemRepositoryLanguage
+import kotlinx.android.synthetic.main.item_repository.view.tvItemRepositoryName
 
 import java.util.ArrayList
 
@@ -30,21 +33,23 @@ class SearchAdapter : RecyclerView.Adapter<SearchAdapter.RepositoryHolder>() {
 
     override fun onBindViewHolder(holder: RepositoryHolder, position: Int) {
         val repo = items[position]
+        with(holder.itemView){
 
-        GlideApp.with(holder.itemView.context)
-            .load(repo.owner.avatarUrl)
-            .placeholder(placeholder)
-            .into(holder.ivProfile)
+            GlideApp.with(holder.itemView.context)
+                .load(repo.owner.avatarUrl)
+                .placeholder(placeholder)
+                .into(ivItemRepositoryProfile)
 
-        holder.tvName.text = repo.fullName
-        holder.tvLanguage.text = if (TextUtils.isEmpty(repo.language))
-            holder.itemView.context.getText(R.string.no_language_specified)
-        else
-            repo.language
+            tvItemRepositoryName.text = repo.fullName
+            tvItemRepositoryLanguage.text = if (TextUtils.isEmpty(repo.language))
+                holder.itemView.context.getText(R.string.no_language_specified)
+            else
+                repo.language
 
-        holder.itemView.setOnClickListener {
-            if (null != listener) {
-                listener!!.onItemClick(repo)
+            holder.itemView.setOnClickListener {
+                if (null != listener) {
+                    listener!!.onItemClick(repo)
+                }
             }
         }
     }
@@ -68,21 +73,7 @@ class SearchAdapter : RecyclerView.Adapter<SearchAdapter.RepositoryHolder>() {
     class RepositoryHolder(parent: ViewGroup) : RecyclerView.ViewHolder(
         LayoutInflater.from(parent.context)
             .inflate(R.layout.item_repository, parent, false)
-    ) {
-
-        var ivProfile: ImageView
-
-        var tvName: TextView
-
-        var tvLanguage: TextView
-
-        init {
-
-            ivProfile = itemView.findViewById(R.id.ivItemRepositoryProfile)
-            tvName = itemView.findViewById(R.id.tvItemRepositoryName)
-            tvLanguage = itemView.findViewById(R.id.tvItemRepositoryLanguage)
-        }
-    }
+    )
 
     interface ItemClickListener {
 
