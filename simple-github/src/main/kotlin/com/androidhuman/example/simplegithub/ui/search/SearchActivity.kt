@@ -16,6 +16,10 @@ import android.view.MenuItem
 import android.view.View
 import android.view.inputmethod.InputMethodManager
 import com.androidhuman.example.simplegithub.api.provideGithubApi
+import io.reactivex.Observable
+import io.reactivex.android.schedulers.AndroidSchedulers
+import io.reactivex.disposables.CompositeDisposable
+import io.reactivex.disposables.Disposable
 import kotlinx.android.synthetic.main.activity_search.*
 
 import retrofit2.Call
@@ -35,7 +39,7 @@ class SearchActivity : AppCompatActivity(), SearchAdapter.ItemClickListener {
 
     internal lateinit var api: GithubApi
 
-    internal var searchCall: Call<RepoSearchResponse>? = null
+    private val disposable = CompositeDisposable()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -89,39 +93,38 @@ class SearchActivity : AppCompatActivity(), SearchAdapter.ItemClickListener {
     }
 
     private fun searchRepository(query: String) {
-        clearResults()
-        hideError()
-        showProgress()
 
-        searchCall = api.searchRepository(query).apply {
-            enqueue(object : Callback<RepoSearchResponse> {
-                override fun onResponse(
-                    call: Call<RepoSearchResponse>,
-                    response: Response<RepoSearchResponse>
-                ) {
-                    hideProgress()
-
-                    val searchResult = response.body()
-                    if (response.isSuccessful && null != searchResult) {
-                        with(adapter){
-                            setItems(searchResult.items)
-                            notifyDataSetChanged()
-                        }
-
-                        if (0 == searchResult.totalCount) {
-                            showError(getString(R.string.no_search_result))
-                        }
-                    } else {
-                        showError("Not successful: " + response.message())
-                    }
+        disposable.add(api.searchRepository(query)
+            .flatMap {
+                if (0 == it.totalCount)
+                    Observable.error(IllegalStateException("No search result"))
+                else
+                    Observable.just(it.items)
+            }
+            .observeOn(AndroidSchedulers.mainThread())
+            .doOnSubscribe {
+                clearResults()
+                hideError()
+                showProgress()
+            }
+            .doOnTerminate {
+                hideProgress()
+            }
+            .subscribe({ items ->
+                with(adapter) {
+                    setItems(items)
+                    notifyDataSetChanged()
                 }
+            }){
+                showError(it.message)
+            }
+        )
 
-                override fun onFailure(call: Call<RepoSearchResponse>, t: Throwable) {
-                    hideProgress()
-                    showError(t.message)
-                }
-            })
-        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        disposable.clear()
     }
 
     private fun updateTitle(query: String) {
