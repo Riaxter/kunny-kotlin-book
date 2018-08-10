@@ -16,4 +16,7 @@ ext {
     supportLibVersion = '27.0.2'
 
     kotlinVersion = '1.1.60'
+
+    rxAndroidVersion = '2.0.1'
+    rxJavaVersion = '2.1.3'
 }
