@@ -1,14 +1,13 @@
 package com.androidhuman.example.simplegithub.ui.repo
 
 import com.androidhuman.example.simplegithub.R
-import com.androidhuman.example.simplegithub.api.GithubApi
-import com.androidhuman.example.simplegithub.api.GithubApiProvider
 import com.androidhuman.example.simplegithub.api.model.GithubRepo
 import com.androidhuman.example.simplegithub.ui.GlideApp
 
 import android.os.Bundle
 import android.support.v7.app.AppCompatActivity
 import android.view.View
+import com.androidhuman.example.simplegithub.api.provideGithubApi
 import kotlinx.android.synthetic.main.activity_repository.*
 
 import java.text.ParseException
@@ -21,24 +20,21 @@ import retrofit2.Response
 
 class RepositoryActivity : AppCompatActivity() {
 
-    internal lateinit var api: GithubApi
+    internal val api by lazy { provideGithubApi(this) }
 
-    internal lateinit var repoCall: Call<GithubRepo>
+    internal var repoCall: Call<GithubRepo>? = null
 
-    internal var dateFormatInResponse = SimpleDateFormat(
+    internal val dateFormatInResponse = SimpleDateFormat(
         "yyyy-MM-dd'T'HH:mm:ssX", Locale.getDefault()
     )
 
-    internal var dateFormatToShow = SimpleDateFormat(
+    internal val dateFormatToShow = SimpleDateFormat(
         "yyyy-MM-dd HH:mm:ss", Locale.getDefault()
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_repository)
-
-        api = GithubApiProvider.provideGithubApi(this)
-
         val login = intent.getStringExtra(KEY_USER_LOGIN)
             ?: throw IllegalArgumentException("No login info exists in extras")
         val repo = intent.getStringExtra(KEY_REPO_NAME)
@@ -50,48 +46,49 @@ class RepositoryActivity : AppCompatActivity() {
     private fun showRepositoryInfo(login: String, repoName: String) {
         showProgress()
 
-        repoCall = api.getRepository(login, repoName)
-        repoCall.enqueue(object : Callback<GithubRepo> {
-            override fun onResponse(call: Call<GithubRepo>, response: Response<GithubRepo>) {
-                hideProgress(true)
+        repoCall = api.getRepository(login, repoName).apply {
+            enqueue(object : Callback<GithubRepo> {
+                override fun onResponse(call: Call<GithubRepo>, response: Response<GithubRepo>) {
+                    hideProgress(true)
 
-                val repo = response.body()
-                if (response.isSuccessful && null != repo) {
-                    GlideApp.with(this@RepositoryActivity)
-                        .load(repo.owner.avatarUrl)
-                        .into(ivActivityRepositoryProfile)
+                    val repo = response.body()
+                    if (response.isSuccessful && null != repo) {
+                        GlideApp.with(this@RepositoryActivity)
+                            .load(repo.owner.avatarUrl)
+                            .into(ivActivityRepositoryProfile)
 
-                    tvActivityRepositoryName.text = repo.fullName
-                    tvActivityRepositoryStars.text = resources
-                        .getQuantityString(R.plurals.star, repo.stars, repo.stars)
-                    if (null == repo.description) {
-                        tvActivityRepositoryDescription.setText(R.string.no_description_provided)
+                        tvActivityRepositoryName.text = repo.fullName
+                        tvActivityRepositoryStars.text = resources
+                            .getQuantityString(R.plurals.star, repo.stars, repo.stars)
+                        if (null == repo.description) {
+                            tvActivityRepositoryDescription.setText(R.string.no_description_provided)
+                        } else {
+                            tvActivityRepositoryDescription.text = repo.description
+                        }
+                        if (null == repo.language) {
+                            tvActivityRepositoryLanguage.setText(R.string.no_language_specified)
+                        } else {
+                            tvActivityRepositoryLanguage.text = repo.language
+                        }
+
+                        try {
+                            val lastUpdate = dateFormatInResponse.parse(repo.updatedAt)
+                            tvActivityRepositoryLastUpdate.text = dateFormatToShow.format(lastUpdate)
+                        } catch (e: ParseException) {
+                            tvActivityRepositoryLastUpdate.text = getString(R.string.unknown)
+                        }
+
                     } else {
-                        tvActivityRepositoryDescription.text = repo.description
+                        showError("Not successful: " + response.message())
                     }
-                    if (null == repo.language) {
-                        tvActivityRepositoryLanguage.setText(R.string.no_language_specified)
-                    } else {
-                        tvActivityRepositoryLanguage.text = repo.language
-                    }
-
-                    try {
-                        val lastUpdate = dateFormatInResponse.parse(repo.updatedAt)
-                        tvActivityRepositoryLastUpdate.text = dateFormatToShow.format(lastUpdate)
-                    } catch (e: ParseException) {
-                        tvActivityRepositoryLastUpdate.text = getString(R.string.unknown)
-                    }
-
-                } else {
-                    showError("Not successful: " + response.message())
                 }
-            }
 
-            override fun onFailure(call: Call<GithubRepo>, t: Throwable) {
-                hideProgress(false)
-                showError(t.message)
-            }
-        })
+                override fun onFailure(call: Call<GithubRepo>, t: Throwable) {
+                    hideProgress(false)
+                    showError(t.message)
+                }
+            })
+        }
     }
 
     private fun showProgress() {
@@ -111,8 +108,8 @@ class RepositoryActivity : AppCompatActivity() {
 
     companion object {
 
-        val KEY_USER_LOGIN = "user_login"
+        const val KEY_USER_LOGIN = "user_login"
 
-        val KEY_REPO_NAME = "repo_name"
+        const val KEY_REPO_NAME = "repo_name"
     }
 }

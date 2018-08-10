@@ -21,42 +21,40 @@ import java.util.ArrayList
 
 class SearchAdapter : RecyclerView.Adapter<SearchAdapter.RepositoryHolder>() {
 
-    private var items: MutableList<GithubRepo> = ArrayList()
+    private var items = mutableListOf<GithubRepo>()
 
     private val placeholder = ColorDrawable(Color.GRAY)
 
     private var listener: ItemClickListener? = null
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RepositoryHolder {
-        return RepositoryHolder(parent)
-    }
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) = RepositoryHolder(parent)
 
     override fun onBindViewHolder(holder: RepositoryHolder, position: Int) {
-        val repo = items[position]
-        with(holder.itemView){
+        items[position].let { repo->
+            with(holder.itemView){
 
-            GlideApp.with(holder.itemView.context)
-                .load(repo.owner.avatarUrl)
-                .placeholder(placeholder)
-                .into(ivItemRepositoryProfile)
+                GlideApp.with(holder.itemView.context)
+                    .load(repo.owner.avatarUrl)
+                    .placeholder(placeholder)
+                    .into(ivItemRepositoryProfile)
 
-            tvItemRepositoryName.text = repo.fullName
-            tvItemRepositoryLanguage.text = if (TextUtils.isEmpty(repo.language))
-                holder.itemView.context.getText(R.string.no_language_specified)
-            else
-                repo.language
+                tvItemRepositoryName.text = repo.fullName
+                tvItemRepositoryLanguage.text = if (TextUtils.isEmpty(repo.language))
+                    holder.itemView.context.getText(R.string.no_language_specified)
+                else
+                    repo.language
 
-            holder.itemView.setOnClickListener {
-                if (null != listener) {
-                    listener!!.onItemClick(repo)
+                holder.itemView.setOnClickListener {
+                    if (null != listener) {
+                        listener!!.onItemClick(repo)
+                    }
                 }
             }
         }
+
     }
 
-    override fun getItemCount(): Int {
-        return items.size
-    }
+    override fun getItemCount() = items.size
 
     fun setItems(items: List<GithubRepo>) {
         this.items = items.toMutableList()

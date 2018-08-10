@@ -2,7 +2,6 @@ package com.androidhuman.example.simplegithub.ui.search
 
 import com.androidhuman.example.simplegithub.R
 import com.androidhuman.example.simplegithub.api.GithubApi
-import com.androidhuman.example.simplegithub.api.GithubApiProvider
 import com.androidhuman.example.simplegithub.api.model.GithubRepo
 import com.androidhuman.example.simplegithub.api.model.RepoSearchResponse
 import com.androidhuman.example.simplegithub.ui.repo.RepositoryActivity
@@ -11,14 +10,12 @@ import android.content.Intent
 import android.os.Bundle
 import android.support.v7.app.AppCompatActivity
 import android.support.v7.widget.LinearLayoutManager
-import android.support.v7.widget.RecyclerView
 import android.support.v7.widget.SearchView
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.view.inputmethod.InputMethodManager
-import android.widget.ProgressBar
-import android.widget.TextView
+import com.androidhuman.example.simplegithub.api.provideGithubApi
 import kotlinx.android.synthetic.main.activity_search.*
 
 import retrofit2.Call
@@ -30,43 +27,45 @@ class SearchActivity : AppCompatActivity(), SearchAdapter.ItemClickListener {
 
     internal lateinit var searchView: SearchView
 
-    internal lateinit var adapter: SearchAdapter
+    internal val adapter by lazy {
+        SearchAdapter().apply {
+            setItemClickListener(this@SearchActivity)
+        }
+    }
 
     internal lateinit var api: GithubApi
 
-    internal lateinit var searchCall: Call<RepoSearchResponse>
+    internal var searchCall: Call<RepoSearchResponse>? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_search)
+        with(rvActivitySearchList){
+            layoutManager = LinearLayoutManager(this@SearchActivity)
+            adapter = this@SearchActivity.adapter
+        }
 
-        adapter = SearchAdapter()
-        adapter.setItemClickListener(this)
-        rvActivitySearchList.layoutManager = LinearLayoutManager(this)
-        rvActivitySearchList.adapter = adapter
-
-        api = GithubApiProvider.provideGithubApi(this)
+        api = provideGithubApi(this)
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.menu_activity_search, menu)
         menuSearch = menu.findItem(R.id.menu_activity_search_query)
+        searchView = (menuSearch.actionView as SearchView).apply {
+            setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+                override fun onQueryTextSubmit(query: String): Boolean {
+                    updateTitle(query)
+                    hideSoftKeyboard()
+                    collapseSearchView()
+                    searchRepository(query)
+                    return true
+                }
 
-        searchView = menuSearch.actionView as SearchView
-        searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
-            override fun onQueryTextSubmit(query: String): Boolean {
-                updateTitle(query)
-                hideSoftKeyboard()
-                collapseSearchView()
-                searchRepository(query)
-                return true
-            }
-
-            override fun onQueryTextChange(newText: String): Boolean {
-                return false
-            }
-        })
-
+                override fun onQueryTextChange(newText: String): Boolean {
+                    return false
+                }
+            })
+        }
         menuSearch.expandActionView()
 
         return true
@@ -81,10 +80,12 @@ class SearchActivity : AppCompatActivity(), SearchAdapter.ItemClickListener {
     }
 
     override fun onItemClick(repository: GithubRepo) {
-        val intent = Intent(this, RepositoryActivity::class.java)
-        intent.putExtra(RepositoryActivity.KEY_USER_LOGIN, repository.owner.login)
-        intent.putExtra(RepositoryActivity.KEY_REPO_NAME, repository.name)
-        startActivity(intent)
+        startActivity(
+            Intent(this, RepositoryActivity::class.java).apply {
+                putExtra(RepositoryActivity.KEY_USER_LOGIN, repository.owner.login)
+                putExtra(RepositoryActivity.KEY_REPO_NAME, repository.name)
+            }
+        )
     }
 
     private fun searchRepository(query: String) {
@@ -92,44 +93,45 @@ class SearchActivity : AppCompatActivity(), SearchAdapter.ItemClickListener {
         hideError()
         showProgress()
 
-        searchCall = api.searchRepository(query)
-        searchCall.enqueue(object : Callback<RepoSearchResponse> {
-            override fun onResponse(
-                call: Call<RepoSearchResponse>,
-                response: Response<RepoSearchResponse>
-            ) {
-                hideProgress()
+        searchCall = api.searchRepository(query).apply {
+            enqueue(object : Callback<RepoSearchResponse> {
+                override fun onResponse(
+                    call: Call<RepoSearchResponse>,
+                    response: Response<RepoSearchResponse>
+                ) {
+                    hideProgress()
 
-                val searchResult = response.body()
-                if (response.isSuccessful && null != searchResult) {
-                    adapter.setItems(searchResult.items)
-                    adapter.notifyDataSetChanged()
+                    val searchResult = response.body()
+                    if (response.isSuccessful && null != searchResult) {
+                        with(adapter){
+                            setItems(searchResult.items)
+                            notifyDataSetChanged()
+                        }
 
-                    if (0 == searchResult.totalCount) {
-                        showError(getString(R.string.no_search_result))
+                        if (0 == searchResult.totalCount) {
+                            showError(getString(R.string.no_search_result))
+                        }
+                    } else {
+                        showError("Not successful: " + response.message())
                     }
-                } else {
-                    showError("Not successful: " + response.message())
                 }
-            }
 
-            override fun onFailure(call: Call<RepoSearchResponse>, t: Throwable) {
-                hideProgress()
-                showError(t.message)
-            }
-        })
-    }
-
-    private fun updateTitle(query: String) {
-        val ab = supportActionBar
-        if (null != ab) {
-            ab.subtitle = query
+                override fun onFailure(call: Call<RepoSearchResponse>, t: Throwable) {
+                    hideProgress()
+                    showError(t.message)
+                }
+            })
         }
     }
 
+    private fun updateTitle(query: String) {
+        supportActionBar?.subtitle = query
+    }
+
     private fun hideSoftKeyboard() {
-        val imm = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
-        imm.hideSoftInputFromWindow(searchView.windowToken, 0)
+        (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).run {
+            hideSoftInputFromWindow(searchView.windowToken, 0)
+        }
     }
 
     private fun collapseSearchView() {
